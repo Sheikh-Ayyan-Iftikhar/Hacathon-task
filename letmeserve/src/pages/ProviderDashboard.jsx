@@ -38,9 +38,11 @@ export default function ProviderDashboard() {
   }, [user.id])
 
   const loadProviderProfile = useCallback(async () => {
-    const { data } = await supabase.from('provider_profiles').select('*').eq('id', user.id).single()
+    const { data, error } = await supabase.from('provider_profiles').select('*').eq('id', user.id).single()
+    if (error) console.error('Error loading provider profile:', error)
     setProviderProfile(data)
     setForm(data)
+    setLoading(false)
   }, [user.id])
 
   useEffect(() => {

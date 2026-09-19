@@ -78,7 +78,7 @@ export default function ProviderDashboard() {
         experience_years: form.experience_years,
         price: form.price,
         bio: form.bio,
-        avatar_emoji: form.avatar_emoji,
+        avatar_url: form.avatar_url,
         is_available: form.is_available,
       })
       .eq('id', user.id)
@@ -159,6 +159,17 @@ export default function ProviderDashboard() {
                 value={form.bio || ''}
                 onChange={(e) => setForm({ ...form, bio: e.target.value })}
               />
+              <label className="label mt-4">Profile Picture URL</label>
+              <div className="mt-2">
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="e.g., https://example.com/avatar.jpg"
+                  value={form.avatar_url || ''}
+                  onChange={(e) => setForm({ ...form, avatar_url: e.target.value })}
+                />
+                <p className="text-xs text-slate-500 mt-1">Leave blank to keep current emoji</p>
+              </div>
             </div>
             <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
               <input

@@ -10,8 +10,16 @@ export default function ProviderCard({ provider }) {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-2xl">
-            {provider.avatar_emoji || '🧰'}
-          </span>
+              {provider.avatar_url ? (
+                <img
+                  src={provider.avatar_url}
+                  alt={`${provider.full_name} profile`}
+                  className="rounded-full w-full h-full object-cover"
+                />
+              ) : (
+                provider.avatar_emoji || '🧰'
+              )}
+            </span>
           <div>
             <p className="font-semibold text-slate-900 group-hover:text-brand-700">
               {provider.profiles?.full_name}

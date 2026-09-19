@@ -69,7 +69,15 @@ export default function ProviderDetails() {
         <div className="flex flex-col items-start justify-between gap-6 sm:flex-row">
           <div className="flex items-center gap-4">
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-3xl">
-              {provider.avatar_emoji || '🧰'}
+              {provider.avatar_url ? (
+                <img
+                  src={provider.avatar_url}
+                  alt={`${provider.profiles?.full_name} profile`}
+                  className="rounded-full w-full h-full object-cover"
+                />
+              ) : (
+                provider.avatar_emoji || '🧰'
+              )}
             </span>
             <div>
               <h1 className="text-xl font-bold text-slate-900">{provider.profiles?.full_name}</h1>

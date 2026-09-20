@@ -1,13 +1,17 @@
 -- ============================================================
--- LetMeServe — Supabase schema
--- Run this once in the Supabase SQL editor for a fresh project.
+-- LetMeServe — Supabase schema (safe to re-run multiple times)
+-- Drops existing policies/triggers before creating — handles "already exists" errors
 -- ============================================================
 
 create extension if not exists "pgcrypto";
 
 -- ============================================================
--- 1. PROFILES  (one row per auth user; role = customer | provider)
+-- 1. PROFILES
 -- ============================================================
+drop policy if exists "profiles are readable by authenticated users" on public.profiles;
+drop policy if exists "users insert their own profile" on public.profiles;
+drop policy if exists "users update their own profile" on public.profiles;
+
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text not null,
@@ -16,9 +20,27 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
+alter table public.profiles enable row level security;
+
+create policy "profiles are readable by authenticated users"
+  on public.profiles for select
+  using (auth.role() = 'authenticated');
+
+create policy "users insert their own profile"
+  on public.profiles for insert
+  with check (auth.uid() = id);
+
+create policy "users update their own profile"
+  on public.profiles for update
+  using (auth.uid() = id);
+
 -- ============================================================
--- 2. PROVIDER_PROFILES  (extra info only providers have)
+-- 2. PROVIDER_PROFILES
 -- ============================================================
+drop policy if exists "provider profiles are publicly readable" on public.provider_profiles;
+drop policy if exists "provider inserts own provider profile" on public.provider_profiles;
+drop policy if exists "provider updates own provider profile" on public.provider_profiles;
+
 create table if not exists public.provider_profiles (
   id uuid primary key references public.profiles(id) on delete cascade,
   service_category text not null,
@@ -27,15 +49,33 @@ create table if not exists public.provider_profiles (
   price numeric(10,2) not null default 0 check (price >= 0),
   bio text default '',
   avatar_emoji text default '🧰',
+  avatar_url text,
   is_available boolean not null default true,
   rating_avg numeric(3,2) not null default 0,
   rating_count int not null default 0,
   created_at timestamptz not null default now()
 );
 
+alter table public.provider_profiles enable row level security;
+
+create policy "provider profiles are publicly readable"
+  on public.provider_profiles for select
+  using (true);
+
+create policy "provider inserts own provider profile"
+  on public.provider_profiles for insert
+  with check (auth.uid() = id);
+
+create policy "provider updates own provider profile"
+  on public.provider_profiles for update
+  using (auth.uid() = id);
+
 -- ============================================================
 -- 3. BOOKINGS
 -- ============================================================
+drop trigger if exists trg_bookings_updated_at on public.bookings;
+drop trigger if exists trg_booking_transition on public.bookings;
+
 create table if not exists public.bookings (
   id uuid primary key default gen_random_uuid(),
   booking_code text not null unique,
@@ -97,6 +137,11 @@ for each row execute function public.enforce_booking_transition();
 -- ============================================================
 -- 4. REVIEWS
 -- ============================================================
+drop trigger if exists trg_review_rules on public.reviews;
+drop trigger if exists trg_refresh_rating on public.reviews;
+drop policy if exists "reviews are publicly readable" on public.reviews;
+drop policy if exists "customers review their own completed bookings" on public.reviews;
+
 create table if not exists public.reviews (
   id uuid primary key default gen_random_uuid(),
   booking_id uuid not null unique references public.bookings(id) on delete cascade,
@@ -106,6 +151,24 @@ create table if not exists public.reviews (
   comment text default '',
   created_at timestamptz not null default now()
 );
+
+alter table public.reviews enable row level security;
+
+create policy "reviews are publicly readable"
+  on public.reviews for select
+  using (true);
+
+create policy "customers review their own completed bookings"
+  on public.reviews for insert
+  with check (
+    auth.uid() = customer_id
+    and exists (
+      select 1 from public.bookings b
+      where b.id = booking_id
+        and b.customer_id = auth.uid()
+        and b.status = 'completed'
+    )
+  );
 
 create or replace function public.enforce_review_rules()
 returns trigger language plpgsql as $$
@@ -148,67 +211,7 @@ after insert on public.reviews
 for each row execute function public.refresh_provider_rating();
 
 -- ============================================================
--- 5. ROW LEVEL SECURITY
--- ============================================================
-alter table public.profiles enable row level security;
-alter table public.provider_profiles enable row level security;
-alter table public.bookings enable row level security;
-alter table public.reviews enable row level security;
-
-create policy "profiles are readable by authenticated users"
-  on public.profiles for select
-  using (auth.role() = 'authenticated');
-
-create policy "users insert their own profile"
-  on public.profiles for insert
-  with check (auth.uid() = id);
-
-create policy "users update their own profile"
-  on public.profiles for update
-  using (auth.uid() = id);
-
-create policy "provider profiles are publicly readable"
-  on public.provider_profiles for select
-  using (true);
-
-create policy "provider inserts own provider profile"
-  on public.provider_profiles for insert
-  with check (auth.uid() = id);
-
-create policy "provider updates own provider profile"
-  on public.provider_profiles for update
-  using (auth.uid() = id);
-
-create policy "participants can read bookings"
-  on public.bookings for select
-  using (auth.uid() = customer_id or auth.uid() = provider_id);
-
-create policy "customers create bookings for themselves"
-  on public.bookings for insert
-  with check (auth.uid() = customer_id);
-
-create policy "participants can update their bookings"
-  on public.bookings for update
-  using (auth.uid() = customer_id or auth.uid() = provider_id);
-
-create policy "reviews are publicly readable"
-  on public.reviews for select
-  using (true);
-
-create policy "customers review their own completed bookings"
-  on public.reviews for insert
-  with check (
-    auth.uid() = customer_id
-    and exists (
-      select 1 from public.bookings b
-      where b.id = booking_id
-        and b.customer_id = auth.uid()
-        and b.status = 'completed'
-    )
-  );
-
--- ============================================================
--- 6. SEED DATA (optional demo providers — safe to skip)
+-- 5. SEED DATA (optional — safe to skip)
 -- ============================================================
 -- insert into public.profiles (id, full_name, role) values
 --   ('00000000-0000-0000-0000-000000000001', 'Ayesha Khan', 'provider');

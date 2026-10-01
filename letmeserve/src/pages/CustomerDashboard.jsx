@@ -15,12 +15,13 @@ export default function CustomerDashboard() {
   const [comment, setComment] = useState('')
   const [reviewError, setReviewError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [ridersLocation, setRidersLocation] = useState({})
 
   const loadBookings = useCallback(async () => {
     setLoading(true)
     const { data } = await supabase
       .from('bookings')
-      .select('*, provider_profiles(*, profiles(full_name)), reviews(id)')
+      .select('*, provider_profiles(*), reviews(id)')
       .eq('customer_id', user.id)
       .order('created_at', { ascending: false })
     setBookings(data || [])
@@ -30,6 +31,20 @@ export default function CustomerDashboard() {
   useEffect(() => {
     loadBookings()
   }, [loadBookings])
+
+  // Track rider locations in real-time (polling every 5 seconds)
+  useEffect(() => {
+    const riderLocationInterval = setInterval(async () => {
+      const { data } = await supabase
+        .from('provider_profiles')
+        .select('id, location, avatar_url, is_available')
+        .eq('id', user.id)
+      if (data && data[0]) {
+        setRidersLocation(data[0])
+      }
+    }, 5000)
+    return () => clearInterval(riderLocationInterval)
+  }, [user.id])
 
   const openReview = (booking) => {
     setReviewTarget(booking)
@@ -135,6 +150,39 @@ export default function CustomerDashboard() {
             <button onClick={submitReview} disabled={submitting} className="btn-primary mt-4 w-full">
               {submitting ? 'Submitting…' : 'Submit review'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Rider Live Location Tracker */}
+      {bookings.length > 0 && bookings.some(b => b.status === 'in_progress') && (
+        <div className="mt-8 p-6 rounded-2xl bg-brand-50">
+          <h2 className="text-lg font-bold text-slate-900 mb-4">Rider Live Location</h2>
+          <div className="space-y-4">
+            {Object.entries(ridersLocation).map(([providerId, provider]) => (
+              <div key={providerId}>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100">
+                    {provider.avatar_url ? (
+                      <img
+                        src={provider.avatar_url}
+                        alt={provider.service_category}
+                        className="rounded-full w-8 h-8 object-cover"
+                      />
+                    ) : (
+                      <span className="text-xl">🧰</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-900">{provider.service_category}</p>
+                    <p className="text-xs text-slate-500">Available: {provider.is_available ? 'Yes' : 'No'}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Last known location: {provider.location || 'Not available'}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

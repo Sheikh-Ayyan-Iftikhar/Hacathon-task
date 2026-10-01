@@ -88,6 +88,11 @@ export default function Home() {
           <h2 className="text-lg font-bold text-slate-900">
             {loading ? 'Loading providers…' : `${filtered.length} service provider${filtered.length !== 1 ? 's' : ''}`}
           </h2>
+          {filtered.length > 0 && filtered[0] && (
+            <p className="text-xs text-slate-500 mt-1">
+              Top rated: {filtered[0]?.rating_avg > 0 ? filtered[0].rating_avg.toFixed(1) : 'New'}
+            </p>
+          )}
         </div>
 
         {loading ? (
